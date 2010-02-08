@@ -67,7 +67,15 @@ class EPP {
 	*/
 	function Connect($host, $port = 700, $timeout = 1) {
 			
-			if (!$this->socket = stream_socket_client($host . ':' . $port, $errno, $errstr, $timeout)) {
+			$context = stream_context_create(array(
+				'tls'=>array(
+					'allow_self_signed' => 'TRUE',
+					'passphrase' => EPP_CERT_PASS,
+					'local_cert' => EPP_CERT,
+				)
+			));
+			
+			if (!$this->socket = stream_socket_client($host . ':' . $port, $errno, $errstr, $timeout, STREAM_CLIENT_CONNECT, $context)) {
 					die("Failed to connect:" . $errstr);
 			} else {
 					stream_set_timeout($this->socket, $timeout);
@@ -200,7 +208,7 @@ class EPP {
         $poll->appendChild($this->setAttribute('op', $op));
         
         if($msgID) {
-            $poll->appendChild($this->setAttribute($this->document, 'msgID', $msgID));
+            $poll->appendChild($this->setAttribute('msgID', $msgID));
         }
         
         // Add transactionId to this frame
@@ -412,7 +420,38 @@ class EPP {
         // Add transactionId to this frame
         $this->_transaction();
     }
-    
+        
+    /**
+    * Function for handeling  <transfer/> requests over EPP
+    * Supports transfers of domains to this registrar.
+    * 
+    * @param string $name affected domainname
+    * @param string $password affected domain password
+    * @return void
+    */
+    public function Transfer($name, $password) {
+        // As this is a command, add the element.
+        $this->_command();
+                
+        $transfer = $this->command->appendChild($this->document->createElement('transfer'));
+		
+		/**
+		* Only op=”request” is supported. All transfers are rejected or executed immediately, 
+		* therefore “query”, “approve”, “reject” are not supported.
+		*/
+		$transfer->appendChild($this->setAttribute('op', 'request'));
+		
+        $domaintransfer = $transfer->appendChild($this->document->createElementNS(XSCHEMA_DOMAIN, 'domain:transfer')); 
+        $domaintransfer->appendChild($this->setAttribute('xsi:schemaLocation', XSCHEMA_DOMAIN.' domain-1.0.xsd'));
+       
+		$domaintransfer->appendChild($this->document->createElementNS(XSCHEMA_DOMAIN, 'name', $name));
+		
+		$authinfo = $domaintransfer->appendChild($this->document->createElementNS(XSCHEMA_DOMAIN, 'authInfo'));
+		$authinfo->appendChild($this->document->createElementNS(XSCHEMA_DOMAIN, 'pw', $password));
+		
+        // Add transactionId to this frame
+        $this->_transaction();
+    }
     /**
     * Basic <hello/> over EPP
     * 
