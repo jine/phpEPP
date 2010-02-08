@@ -1,7 +1,13 @@
 <?php
 
-define('EPP_USER',          'your-epp-username');
-define('EPP_PWD',           'your-eep-password');
+// EPP Server information
+define('EPP_HOST',          'ssl://epptest2.iis.se');
+define('EPP_PORT',           700);
+define('EPP_TIMEOUT',        1);
+
+// EPP Auth information
+define('EPP_USER',          '');
+define('EPP_PWD',           '');
 
 // Do we want indented XML output? (Useful for debugging)
 define('FORMAT_OUTPUT',      true);

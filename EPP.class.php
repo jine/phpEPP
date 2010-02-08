@@ -2,12 +2,12 @@
 /**
  * Class to generate XML data to be used with EPP
  *
- * @package   EPPXML
+ * @package   phpEPP
  * @author    Jim Nelin <jim@jine.se>
  * @copyright Copyright (c) 2010, Jim Nelin
- * @see       readme.txt
+ * @see       COMMANDS.txt
  */
-class EPPXML {
+class EPP {
 
     /**
     * Variable used for internal storage of objects and data
@@ -15,15 +15,29 @@ class EPPXML {
     */
     private $vars = array();
     
+		
+	// Proctect the magic clone function!
+	// This to make it impossible to clone the class and use $vars.
+	protected function __clone() {
+			/* Placeholder */
+	}
+		
     /**
-    * Constuctor for the EPPXML object.
-    *
-    * Creates the DOMDocument object to be used later on
+    * Constuctor for the EPP object.
+	* Automaticly connects to the specified EPP server
+	*
+    * And creates the DOMDocument object to be used later on
     * Also adds the default <epp/> tree and sets default attributes for the root element.
     *
     * @return void
     */
-    public function __construct() {
+    public function __construct($connect = true) {
+		
+		// Connects to the EPP server if $connect == true.
+		if($connect && !$this->socket) {
+			$this->Connect(EPP_HOST, EPP_PORT, EPP_TIMEOUT);
+		}
+		
         // Initialize the DOM-tree
         $this->document = new DOMDocument('1.0', 'UTF-8');
         
@@ -39,9 +53,89 @@ class EPPXML {
 
         // Append <epp/> to the document
         $this->document->appendChild($this->epp);
-        
     }
-    
+	
+	/**
+	* This method establishes the connection to the server. If the connection was
+	* established, then this method will call getFrame() and return the EPP <greeting>
+	* frame which is sent by the server upon connection.
+	*
+	* @param string the hostname and protocol (tls://example.com)
+	* @param integer the TCP port
+	* @param integer the timeout in seconds
+	* @return on success a string containing the server <greeting>
+	*/
+	function Connect($host, $port = 700, $timeout = 1) {
+			
+			if (!$this->socket = stream_socket_client($host . ':' . $port, $errno, $errstr, $timeout)) {
+					die("Failed to connect:" . $errstr);
+			} else {
+					stream_set_timeout($this->socket, $timeout);
+					return $this->getFrame();
+			}
+			
+	}
+	
+	/**
+	* Get an EPP frame from the server.
+	* This retrieves a frame from the server. Since the connection is blocking, this
+	* method will wait until one becomes available. 
+	* containing the XML from the server
+	* @return on success a string containing the frame
+	*/
+	function getFrame() {
+		if (@feof($this->socket)) die('Couldn\'t get frame - closed by remote server');
+		
+		// Read the 4 first bytes (reply length)
+		$hdr = fread($this->socket, 4);
+		
+		if (empty($hdr) && feof($this->socket)) {
+			
+			die('Couldn\'t get HDR - connection closed by remote server');
+				
+		} elseif (empty($hdr)) {
+			
+			die('Error reading from server - connection closed.');
+			
+		} else {
+			
+			$unpacked = unpack('N', $hdr);
+			$length = $unpacked[1];
+			if ($length < 5) {
+					die(sprintf('Got a bad frame header length of %d bytes from server', $length));
+			} else {
+					return fread($this->socket, ($length - 4));
+			}
+			
+		}
+	}
+
+	/**
+	* Send the current XML frame to the server.
+	* @return boolean the result of the fwrite() operation
+	*/
+	function sendFrame() {
+		if($this->socket) {
+			$xml = $this->getXML(); // Get the current XML frame
+			return fwrite($this->socket, pack('N', (strlen($xml)+4)).$xml);
+		}
+		
+		return false;
+	}
+	
+	/**
+	* a wrapper around sendFrame() and getFrame()
+	* @return string the frame returned by the server
+	*/
+	function Process() {
+		if($this->sendFrame()) {
+			return $this->getFrame();
+		}
+		
+		return false;
+	}
+
+
     /**
     * Creates EPP request for <login/>
     * Uses EPP_USER and EPP_PWD constants for login
@@ -338,8 +432,21 @@ class EPPXML {
     public function getXML() {
         $xml = $this->document->saveXML();
         $this->_clean();
+		
         return $xml;
     }
+		
+	
+	/**
+	* Close the connection.
+	* This method closes the connection to the server. Note that the
+	* EPP specification indicates that clients should send a <logout>
+	* command before ending the session.
+	* @return boolean the result of the fclose() operation
+	*/
+	function Disconnect() {
+		return @fclose($this->socket);
+	}
     
     /**
     * Private section starts
@@ -378,8 +485,12 @@ class EPPXML {
     * @return void
     */
     private function _transaction() {
+		
+		// Fix for making microtime floats more accurate.
+		ini_set('precision', 16);
+		
         // Add transactionid's to all generated EPP frames with commands
-        $tranId = "phpEPP-" . time() . "-" . getmypid();
+        $tranId = "phpEPP-" . microtime(1) . "-" . getmypid();
         $this->command->appendChild($this->document->createElement('clTRID', $tranId));
     }
     
@@ -409,5 +520,14 @@ class EPPXML {
     private function __toString() {
         return $this->getXML();
     }
+	
+	/**
+	* phpEPP Destructor, just to do some garbage cleaning.
+	* Removes $vars and closes EPP connection. 
+	*/
+    public function __destruct() {
+		$this->Disconnect();
+		unset($this->vars);
+	}
 
 }

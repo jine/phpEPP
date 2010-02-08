@@ -1,31 +1,33 @@
 <?php
 
 include 'config.php';
-include 'EPPXML.class.php';
-include 'EPPSocket.class.php';
+include 'EPP.class.php';
+
+
+// Padding variable for debug.. :)
+$_ = "===============================\n";
+
+
 
 // Connect to the EPP Server
-$eppsocket = new EPPSocket();
-$eppsocket->Connect('ssl://epptest2.iis.se');
+$epp = new EPP();
 
-// Create basic XML structure.
-$xml = new EPPXML();
+
 
 /****************************************/
-$xml->Login(); // Add login XML
-
-echo "Logging in...\n";
-echo $eppsocket->sendRequest($xml->getXML());
+echo $_."Logging in...\n".$_;
+$epp->Login(); // Add login XML
+echo $epp->Process();
 /****************************************/
 
 
 /****************************************/
-$xml->Check('domain', 'jine.se'); // Add check-domain XML
-
-echo "Checking jine.se...\n";
-echo $eppsocket->sendRequest($xml->getXML());
+echo $_."Checking jine.se...\n".$_;
+$epp->Check('domain', 'jine.se'); // Add check-domain XML
+echo $epp->Process();
 /****************************************/
+
 
 // Close connection!
-echo "Closing connection...\n";
-echo $eppsocket->Disconnect();
+echo $_."Closing connection...\n".$_;
+echo $epp->Disconnect();
