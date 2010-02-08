@@ -1,0 +1,62 @@
+<?php
+
+
+$xml->Hello();
+$xml->Login();
+$xml->Poll();
+
+$xml->Check("domain", "jine.se");
+$xml->Check("host", "ns1.iis.se");
+$xml->Check("domain", array("jine.se","hax.se","h0x.se","hmm.se","wat.se"));
+
+$xml->Info("host", "ns1.example.se");
+$xml->Info("domain", "jine.se");
+
+$xml->Delete('domain', 'jine.se');
+$xml->Delete('contact', 'jimnel0115-00001');
+
+$xml->Logout();
+
+
+$domain = array(
+    'name' => 'epptestjine.se',
+    'period' => 12, // Months
+    'ns' => array('ns1.jine.se', 'ns2.jine.se'),
+    'registrant' => 'jimnel0115-00001',
+    'pw' => '.Hax0r+1zZ!.',
+);
+$xml->Create("domain", $domain);
+
+
+
+
+$host = array(
+    'name' => 'ns1.jine.se',
+    'addr' => array(
+        #array('v6', '2001:0db8::1428:07ab/64'),
+        array('v4', '91.142.189.235'),
+    )
+);
+$xml->Create("host", $host);
+
+
+
+$contact = array(
+    'id' => 'jimnel0118-0001',
+    'name' => 'Jim Nelin',
+    'org' => 'Jine',
+    'street' => array('C/O Anka', 'Vägen 1'),
+    'city' => 'Stockholm',
+    'pc' => '12345',
+    'cc' => 'SE',
+    'orgno' => '[SE]901019-0578',
+    'vatno' => 'SE901019057801',
+);
+$xml->Create("contact", $contact);
+
+
+$xml->getXML();
+
+
+
+
