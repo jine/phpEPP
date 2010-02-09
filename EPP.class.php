@@ -42,7 +42,7 @@ class EPP {
         $this->document = new DOMDocument('1.0', 'UTF-8');
         
         // Set DOM modes and output format
-        $this->dovc->standalone = false;
+        $this->document->standalone = false;
         $this->document->formatOutput = FORMAT_OUTPUT;
 
         // Create $this->epp and fill it with default attributes
@@ -112,7 +112,12 @@ class EPP {
 			if ($length < 5) {
 					die(sprintf('Got a bad frame header length of %d bytes from server', $length));
 			} else {
-					return fread($this->socket, ($length - 4));
+					// Read everything except the 4 bytes we read before.
+					$xml = fread($this->socket, ($length - 4));
+					$this->latest = $xml; // Store the latest XML
+					$this->_logframe($xml); // And then log the frame.
+					
+					return $xml;
 			}
 			
 		}
@@ -125,6 +130,8 @@ class EPP {
 	function sendFrame() {
 		if($this->socket) {
 			$xml = $this->getXML(); // Get the current XML frame
+			$this->_logframe($xml); // Log the frame if enabled.
+			
 			return fwrite($this->socket, pack('N', (strlen($xml)+4)).$xml);
 		}
 		
@@ -236,7 +243,9 @@ class EPP {
         } elseif($type == 'host')  {
             $xschema = XSCHEMA_HOST;
             $checkelement = 'host:name';
-        }
+        } else {
+			throw new Exception('Missing first argument.');
+		}
         
         $check = $this->command->appendChild($this->document->createElement('check'));
         $typecheck = $check->appendChild($this->document->createElementNS($xschema, $type.':check')); 
@@ -275,7 +284,9 @@ class EPP {
         } elseif($type == 'host')  {
             $xschema = XSCHEMA_HOST;
             $infoelement = 'host:name';
-        }
+        } else {
+			throw new Exception('Missing first argument.');
+		}
         
         $info = $this->command->appendChild($this->document->createElement('info'));
         $typeinfo = $info->appendChild($this->document->createElementNS($xschema, $type.':info')); 
@@ -308,7 +319,9 @@ class EPP {
             $delelement = 'host:name';
         } elseif($type == 'domain')  {
             throw new Exception('Delete command not supported for type "domain"');
-        }
+        } else {
+			throw new Exception('Missing first argument.');
+		}
         
         $delete = $this->command->appendChild($this->document->createElement('delete'));
         $typedel = $delete->appendChild($this->document->createElementNS($xschema, $type.':delete')); 
@@ -332,9 +345,15 @@ class EPP {
         // As this is a command, add the element.
         $this->_command();
         
-        if($type == 'domain') { $xschema = XSCHEMA_DOMAIN; }
-        elseif($type == 'contact') { $xschema = XSCHEMA_CONTACT; }
-        elseif($type == 'host')  { $xschema = XSCHEMA_HOST; }
+        if($type == 'domain') { 
+			$xschema = XSCHEMA_DOMAIN; 
+		} elseif($type == 'contact') { 
+			$xschema = XSCHEMA_CONTACT; 
+		} elseif($type == 'host')  { 
+			$xschema = XSCHEMA_HOST; 
+		} else { 
+			throw new Exception('Missing first argument.'); 
+		}
         
         $create = $this->command->appendChild($this->document->createElement('create'));
         $typecreate = $create->appendChild($this->document->createElementNS($xschema, $type.':create')); 
@@ -417,6 +436,7 @@ class EPP {
             }
             
         }
+		
         // Add transactionId to this frame
         $this->_transaction();
     }
@@ -490,7 +510,6 @@ class EPP {
         $this->epp->appendChild($this->document->createElement('hello'));
     }
     
-    
     /**
     * GetXML function for getting generated XML
     * When requested, the _clean functions is runned to restart EPPXML.
@@ -504,25 +523,73 @@ class EPP {
         return $xml;
     }
 		
+
+	public function XPath($xml = null) {
+		$dom = new DOMDocument;
+		
+		if(empty($xml)) {
+			// If $xml is null, use the latest frame. 
+			$xml = $this->latest;
+			
+			 // If $xml still is empty, return false.
+			if(empty($xml)) return false;
+		}
+		
+		if (@$dom->loadXML($xml) === false) {
+			die("XML parse error, couldn't loadXML() in ".__FILE__);
+		}
+		
+		$xpath = new DOMXPath($dom);
+		
+		/**
+		* Register all of .SE´s namespaces.
+		*/
+		$xpath->registerNamespace( 'epp', XMLNS_EPP );
+		$xpath->registerNamespace( 'con', XSCHEMA_CONTACT );
+		$xpath->registerNamespace( 'dom', XSCHEMA_DOMAIN );
+		$xpath->registerNamespace( 'hos', XSCHEMA_HOST );
+		$xpath->registerNamespace( 'iis', XSCHEMA_EXTIIS );
+		$xpath->registerNamespace( 'iis', XSCHEMA_EXTIISO );
+		$xpath->registerNamespace( 'secDNS', XSCHEMA_EXTDNSSEC );
+		
+		return $xpath;
+		
+	}
 	
+	public function getResultCode() {
+		// Use the latest frame for XPath.
+		$xpath = $this->XPath();
+		
+		return $xpath->query('/epp:epp/epp:response/epp:result/@code')->item(0)->nodeValue;
+	}
+	
+	public function getResultMsg() {
+		// Use the latest frame for XPath.
+		$xpath = $this->XPath();
+		
+		return $xpath->query('/epp:epp/epp:response/epp:result/epp:msg/text()')->item(0)->nodeValue;
+	}
+
 	/**
 	* Close the connection.
 	* This method closes the connection to the server. Note that the
 	* EPP specification indicates that clients should send a <logout>
 	* command before ending the session.
-	* @return boolean the result of the fclose() operation
+	* @return boolean true | the result of the fclose() operation
 	*/
 	function Disconnect() {
-		return @fclose($this->socket);
+		if($this->socket) {
+			return @fclose($this->socket);
+		}
+		
+		return true;
 	}
     
-    /**
-    * Private section starts
-    * Functions below are marked as private
+    /********************************************
+    * Private section starts here.
+    * Functions below are set to private
     * And are used internally in this class.
-    * 
-    * @see readme.txt
-    */
+    *********************************************/
     
     /**
     * Adds a <command/> element to <epp/> inside of the document.
@@ -561,6 +628,22 @@ class EPP {
         $tranId = "phpEPP-" . microtime(1) . "-" . getmypid();
         $this->command->appendChild($this->document->createElement('clTRID', $tranId));
     }
+	
+    
+    /**
+    * Private function used for binary logging of all frames.
+    * Writes ALL XML sent to it, to EPP_LOG_FILE as gzip:ed data.
+    *
+	* @param string $xml XML-frame in fully
+    * @return boolean
+    */
+	private function _logframe($xml) {
+		if(constant('EPP_LOG') !== false && constant('EPP_LOG_FILE')) {
+			return file_put_contents(EPP_LOG_FILE, gzcompress($xml) . pack('L', 0xFEE1DEAD), FILE_APPEND);
+		}
+		
+		return false;
+	}
     
     private function setAttribute($name, $value) {
         $attribute = $this->document->createAttribute($name);
@@ -589,6 +672,7 @@ class EPP {
         return $this->getXML();
     }
 	
+	
 	/**
 	* phpEPP Destructor, just to do some garbage cleaning.
 	* Removes $vars and closes EPP connection. 
@@ -599,3 +683,23 @@ class EPP {
 	}
 
 }
+	
+/*
+function epp( $xml )
+{
+
+	$node = new DOMDocument;
+	if ( @$node->loadXML( $xml ) == false ) {
+		print "Parse error\n";
+		exit(1);
+	}
+	$xpath = new DOMXPath( $node );
+	$xpath->registerNamespace( 'epp', XMLNS_EPP );
+	$xpath->registerNamespace( 'con', XSCHEMA_CONTACT );
+	$xpath->registerNamespace( 'dom', XSCHEMA_DOMAIN );
+	$xpath->registerNamespace( 'hos', XSCHEMA_HOST );
+	$xpath->registerNamespace( 'iis', XSCHEMA_EXTIIS );
+	$xpath->registerNamespace( 'iis', XSCHEMA_EXTIISO );
+	$xpath->registerNamespace( 'secDNS', XSCHEMA_EXTDNSSEC );
+	return $xpath;
+}*/
