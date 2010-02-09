@@ -452,6 +452,35 @@ class EPP {
         // Add transactionId to this frame
         $this->_transaction();
     }
+        
+    /**
+    * Function for handeling renews of domains (only)
+    * Renews a domain 12-120 months. 
+	* Renews are possible until one day before <iis:delDate/>
+    * 
+    * @param string $name affected domainname
+    * @param date $curexpiredate Current expire date
+    * @param integer $period Period (in months) to renew domain.
+    * @return void
+    */
+    public function Renew($name, $curexpdate, $period) {
+        // As this is a command, add the element.
+        $this->_command();
+                
+        $renew = $this->command->appendChild($this->document->createElement('renew'));
+		
+        $domainrenew = $renew->appendChild($this->document->createElementNS(XSCHEMA_DOMAIN, 'domain:renew')); 
+        $domainrenew->appendChild($this->setAttribute('xsi:schemaLocation', XSCHEMA_DOMAIN.' domain-1.0.xsd'));
+       
+		$domainrenew->appendChild($this->document->createElementNS(XSCHEMA_DOMAIN, 'name', $name));
+		$domainrenew->appendChild($this->document->createElementNS(XSCHEMA_DOMAIN, 'curExpDate', $curexpdate));
+		$period = $domainrenew->appendChild($this->document->createElementNS(XSCHEMA_DOMAIN, 'period', $period));
+		$period->appendChild($this->setAttribute('unit', 'm'));
+		
+        // Add transactionId to this frame
+        $this->_transaction();
+    }
+	
     /**
     * Basic <hello/> over EPP
     * 
