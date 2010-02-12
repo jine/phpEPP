@@ -357,39 +357,52 @@ class EPP {
 		} else { 
 			throw new Exception('Missing first argument.'); 
 		}
-
+		
+		// Create base element
 		$create = $this->command->appendChild($this->document->createElement('create'));
 		$typecreate = $create->appendChild($this->document->createElementNS($xschema, $type.':create')); 
 		$typecreate->appendChild($this->setAttribute('xsi:schemaLocation', $xschema.' '.$type.'-1.0.xsd'));
 
-
+		/**
+		* Start Create functionality for DOMAINS.
+		*/
 		if($type == 'domain') { 
-
+		
+			// Add domain:name and period
 			$typecreate->appendChild($this->document->createElementNS($xschema, 'name', $array['name']));
 			$period = $typecreate->appendChild($this->document->createElementNS($xschema, 'period', $array['period']));
 			$period->appendChild($this->setAttribute('unit', 'm'));
-
+			
+			// Add HOST Objectes
 			$ns = $typecreate->appendChild($this->document->createElementNS($xschema, 'ns'));
 			foreach($array['ns'] as $hostobj) {
 				$ns->appendChild($this->document->createElementNS($xschema, 'hostObj', $hostobj));
 			}
-
+		
+			// Add contact id
 			$typecreate->appendChild($this->document->createElementNS($xschema, 'registrant', $array['registrant']));
-
+			
+			// Add authinfo (password)
 			$authinfo = $typecreate->appendChild($this->document->createElementNS($xschema, 'authInfo'));
 			$authinfo->appendChild($this->document->createElementNS($xschema, 'pw', $array['pw']));
 
+		/**
+		* Start Create functionality for CONTACTS.
+		*/
 		} elseif($type == 'contact') {
-
+			
+			// Add contact:id and create postalInfo base element.
 			$typecreate->appendChild($this->document->createElementNS($xschema, 'id', $array['id']));
 			$loc = $typecreate->appendChild($this->document->createElementNS($xschema, 'postalInfo'));
 			$loc->appendChild($this->setAttribute('type', 'loc'));
-
+			
+			// Add name / organisation
 			$loc->appendChild($this->document->createElementNS($xschema, 'name', $array['name']));
 			if(!empty($array['org'])) {
 				$loc->appendChild($this->document->createElementNS($xschema, 'org', $array['org']));
 			}
-
+			
+			// Add addr-information
 			$addr = $loc->appendChild($this->document->createElementNS($xschema, 'addr'));
 			foreach($array['street'] as $street) {
 				$addr->appendChild($this->document->createElementNS($xschema, 'street', $street));
@@ -398,7 +411,8 @@ class EPP {
 			$addr->appendChild($this->document->createElementNS($xschema, 'city', $array['city']));
 			$addr->appendChild($this->document->createElementNS($xschema, 'pc', $array['pc']));
 			$addr->appendChild($this->document->createElementNS($xschema, 'cc', $array['cc']));
-
+			
+			// Add phone and fax information
 			$voice = $typecreate->appendChild($this->document->createElementNS($xschema, 'voice', $array['voice']));
 			$voice->appendChild($this->setAttribute('x', ''));
 
@@ -406,9 +420,14 @@ class EPP {
 				$fax = $typecreate->appendChild($this->document->createElementNS($xschema, 'fax', $array['fax']));
 				$fax->appendChild($this->setAttribute('x', ''));
 			}
-
+		
+			// Add Email
 			$typecreate->appendChild($this->document->createElementNS($xschema, 'email', $array['email']));
-
+			
+			/**
+			* Set disclosure information to NOTHING
+			* Except Name OR OrgName.
+			*/
 			$disclose = $typecreate->appendChild($this->document->createElementNS($xschema, 'disclose'));
 			$disclose->appendChild($this->setAttribute('flag', '0')); // Flag=0, default = hide all.
 
@@ -419,20 +438,27 @@ class EPP {
 				$disclosename = $disclose->appendChild($this->document->createElementNS($xschema, 'org'));
 				$disclosename->appendChild($this->setAttribute('type', 'loc'));
 			}
-
+			
+			// Add IIS OrgNo extension
 			$extension = $this->command->appendChild($this->document->createElement('extension'));
 			$iiscreate = $extension->appendChild($this->document->createElementNS(XSCHEMA_EXTIIS, 'iis:create'));
 			$iiscreate->appendChild($this->setAttribute('xsi:schemaLocation', XSCHEMA_EXTIIS.' iis-1.0.xsd'));
 			$iiscreate->appendChild($this->document->createElementNS(XSCHEMA_EXTIIS, 'orgno', $array['orgno']));
 
+			// Add IIS VatNo extension
 			if(!empty($array['vatno'])) {
 				$iiscreate->appendChild($this->document->createElementNS(XSCHEMA_EXTIIS, 'vatno', $array['vatno']));
 			}
 
+		/**
+		* Start Create functionality for HOSTS.
+		*/
 		} elseif($type == 'host') {
-
+			
+			// Add Host:name
 			$typecreate->appendChild($this->document->createElementNS($xschema, 'name', $array['name']));
-
+			
+			// Add IPv4/IPv6 information for each addr.
 			foreach($array['addr'] as $addr) {
 				$record = $typecreate->appendChild($this->document->createElementNS($xschema, 'addr', $addr[1]));
 				$record->appendChild($this->setAttribute('ip', $addr[0]));
@@ -477,6 +503,156 @@ class EPP {
 	}
 
 	/**
+	* Function for handeling all <create/> requests over EPP
+	* Used for creating of domains, contacts and hosts
+	* 
+	* @param string $type domain|contact|host
+	* @param string $name domainname|contact-id|hostname
+	* @param array $array Array with appropriate keys
+	* @return void
+	*/
+	public function Update($type, $name, $array) {
+		// As this is a command, add the element.
+		$this->_command();
+
+		if($type == 'domain') { 
+			$xschema = XSCHEMA_DOMAIN; 
+		} elseif($type == 'contact') { 
+			$xschema = XSCHEMA_CONTACT; 
+		} elseif($type == 'host')  { 
+			$xschema = XSCHEMA_HOST; 
+		} else { 
+			throw new Exception('Missing first argument.'); 
+		}
+
+		$update = $this->command->appendChild($this->document->createElement('update'));
+		$typeupdate = $update->appendChild($this->document->createElementNS($xschema, $type.':update')); 
+		$typeupdate->appendChild($this->setAttribute('xsi:schemaLocation', $xschema.' '.$type.'-1.0.xsd'));
+		
+		// Handles Update requests for domains
+		if($type == 'domain') {
+			
+			$typeupdate->appendChild($this->document->createElementNS($xschema, 'name', $name));
+			
+			// For each input array, get method (rem, add, chg) and the values inside.
+			foreach($array as $method => $elements) {
+				
+				// Foreach of the elements inside of the $chg/rem/add arrays.
+				foreach($elements as $tagelement => $values) {
+					
+					if(!$this->document->getElementsByTagNameNS($xschema, $method)->length) {
+						$element = $typeupdate->appendChild($this->document->createElementNS($xschema, $method));
+					}
+					
+					if($tagelement == 'ns') {
+						$ns = $element->appendChild($this->document->createElementNS($xschema, 'ns'));
+						foreach($values as $hostobj) {
+							$ns->appendChild($this->document->createElementNS($xschema, 'hostObj', $hostobj));
+						}
+					}
+					
+					if($tagelement == 'pw' && $method == 'chg') {
+						$authinfo = $element->appendChild($this->document->createElementNS($xschema, 'authInfo'));
+						$authinfo->appendChild($this->document->createElementNS($xschema, 'pw', $values));
+					}
+					
+					if($tagelement == 'registrant') {
+						$element->appendChild($this->document->createElementNS($xschema, 'registrant', $values));
+					}
+				}
+			}
+			
+		} elseif($type == 'contact') { 
+		
+			// Add contact:id element.
+			$typeupdate->appendChild($this->document->createElementNS($xschema, 'id', $name));
+			
+			// Foreach of the elements inside of the $chg array, ignore the others.
+			foreach($array['chg'] as $tagelement => $values) {
+				
+				// Ignore the VatNo element.
+				if($tagelement == 'vatno') { continue; }
+				
+				if(!$this->document->getElementsByTagNameNS($xschema, 'chg')->length) {
+					$element = $typeupdate->appendChild($this->document->createElementNS($xschema, 'chg'));
+				}
+				
+				if(in_array($tagelement, array('street', 'city', 'city', 'cc', 'pc', 'name', 'org'))) {
+					
+					if(!$this->document->getElementsByTagNameNS($xschema, 'postalInfo')->length) {
+						$postalInfo = $element->appendChild($this->document->createElementNS($xschema, 'postalInfo'));
+						$postalInfo->appendChild($this->setAttribute('type', 'loc'));
+					}
+					
+					if(in_array($tagelement, array('name', 'org'))) {
+						$postalInfo->appendChild($this->document->createElementNS($xschema, $tagelement, $values));
+						continue;
+					} 
+					
+					// Add addr-information
+					if(!$this->document->getElementsByTagNameNS($xschema, 'addr')->length) {
+						$addr = $postalInfo->appendChild($this->document->createElementNS($xschema, 'addr'));
+					}
+					
+					if($tagelement == 'street') {
+						foreach($values as $street) {
+							$addr->appendChild($this->document->createElementNS($xschema, 'street', $street));
+						}
+					} else {
+						$addr->appendChild($this->document->createElementNS($xschema, $tagelement, $values));
+					}
+					
+				} else {
+					
+					// For everything else (fax/voice etc)
+					if($values == '') {
+						$element->appendChild($this->document->createElementNS($xschema, $tagelement));
+					} else {
+						$element->appendChild($this->document->createElementNS($xschema, $tagelement, $values));
+					}
+					
+				}
+			}
+		
+			if(isset($array['chg']['vatno'])) {
+				// Add IIS VatNo extension
+				$extension = $this->command->appendChild($this->document->createElement('extension'));
+				$iiscreate = $extension->appendChild($this->document->createElementNS(XSCHEMA_EXTIIS, 'iis:update'));
+				$iiscreate->appendChild($this->setAttribute('xsi:schemaLocation', XSCHEMA_EXTIIS.' iis-1.0.xsd'));
+				$iiscreate->appendChild($this->document->createElementNS(XSCHEMA_EXTIIS, 'vatno', $array['chg']['vatno']));
+			}
+		
+		} elseif($type == 'host') { 
+			
+			$typeupdate->appendChild($this->document->createElementNS($xschema, 'name', $name));
+			
+			// For each input array, get method (rem, add, chg) and the values inside.
+			foreach($array as $method => $elements) {
+				
+				// Throw exception if chg is found in array.
+				if($method == 'chg') {
+					throw new Exception('<host:chg/> is not a valid element for <host:update/>.'); 
+				}
+					
+				// Foreach of the elements inside of the rem/add arrays.
+				foreach($elements as $tagelement => $values) {
+					
+					if(!$this->document->getElementsByTagNameNS($xschema, $method)->length) {
+						$element = $typeupdate->appendChild($this->document->createElementNS($xschema, $method));
+					}
+					
+					foreach($values as $hosts) {
+						$addr = $element->appendChild($this->document->createElementNS($xschema, 'addr', $hosts[1]));
+						$addr->appendChild($this->setAttribute('ip', $hosts[0]));
+					}
+				}
+			
+			}
+			
+		}
+	}
+	
+	/**
 	* Function for handeling renews of domains (only)
 	* Renews a domain 12-120 months. 
 	* Renews are possible until one day before <iis:delDate/>
@@ -515,17 +691,41 @@ class EPP {
 
 	/**
 	* GetXML function for getting generated XML
-	* When requested, the _clean functions is runned to restart EPPXML.
+	* When requested, the _clean functions is runned to reset the XML.
+	* But only if $clean == true.
 	*
+	* @param boolean should we clean the XML-DOM after returned data?
 	* @return void
 	*/
-	public function getXML() {
+	public function getXML($clean = true) {
 		$xml = $this->document->saveXML();
-		$this->_clean();
-
+		
+		if($clean) {
+			$this->_clean();
+		}
+		
 		return $xml;
 	}
+	
 
+	/**
+	* SetXML function for setting custom/test XML
+	* When requested, the _clean functions is runned to restart EPP.
+	* And then it sets the current XML to the input var.
+	*
+	* @param string $xml XML.
+	* @return void
+	*/
+	public function setXML($xml) {
+	
+		// Initialize the DOM-tree
+		$this->document = new DOMDocument();
+		$this->document->loadXML($xml);
+		
+		return $this->document->saveXML();
+	}
+	
+	
 
 	public function XPath($xml = null) {
 		$dom = new DOMDocument;

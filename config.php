@@ -1,13 +1,22 @@
 <?php
 
-// EPP Server information
-define('EPP_HOST',          'ssl://epptest2.iis.se');
-define('EPP_PORT',           700);
-define('EPP_TIMEOUT',        1);
+// EPP Server settings
+define('EPP_HOST',          'sslv3://epptest2.iis.se');
+define('EPP_PORT',          700);
+define('EPP_TIMEOUT',       1);
+
+// EPP Cert information
+define('EPP_CERT',          '/tmp/cacert.pem');
+define('EPP_CERT_PASS',     'epptestIIS123!');
 
 // EPP Auth information
-define('EPP_USER',          '');
+define('EPP_USER',          'jinese2');
 define('EPP_PWD',           '');
+
+// EPP Log settings
+define('EPP_LOG',            true);
+define('EPP_LOG_FILE',       'log.bin');
+
 
 // Do we want indented XML output? (Useful for debugging)
 define('FORMAT_OUTPUT',      true);

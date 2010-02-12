@@ -3,7 +3,8 @@
 
 $xml->Hello();
 $xml->Login();
-$xml->Poll();
+$xml->Poll(); // Poll($op = 'req', $msgID = null)
+$xml->Poll('ack', 12345);
 
 $xml->Check("domain", "jine.se");
 $xml->Check("host", "ns1.iis.se");
